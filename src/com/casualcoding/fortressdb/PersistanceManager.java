@@ -46,15 +46,15 @@ public class PersistanceManager {
 		// get all (pageId, data) for transactionID
 		while (!_committedTransactions.isEmpty()) {
 			int tid = _committedTransactions.pop();
-			_buffer.
+//			_buffer.
 		}
 		
-		new list
-		for(Object[] tuple: _buffer.values()) {
-			int tid = (Integer) tuple[0];
-			if(_committedTransactions.contains(tid)) (
-				list.add()	)
-		}
+//		new list
+//		for(Object[] tuple: _buffer.values()) {
+//			int tid = (Integer) tuple[0];
+//			if(_committedTransactions.contains(tid)) (
+//				list.add()	)
+//		}
 		
 		// write all tuples to disk
 		// remove tuples from buffer
