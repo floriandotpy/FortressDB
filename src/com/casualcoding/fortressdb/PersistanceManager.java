@@ -1,63 +1,101 @@
 package com.casualcoding.fortressdb;
 
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Stack;
 
 public class PersistanceManager {
 	private static final int MAX_BUFFER_SIZE = 5;
+	private static final String DB_FOLDER = "db/";
 	
 	private static PersistanceManager _pmngr;
 	private Map<Integer, Object[]> _buffer; // pageId -> (transactionId, data)
-	private LogFile _log;
-	private Storage _disk;
-	private Stack<Integer> _committedTransactions;
+
+	private Map<Integer, Object[]> _committedTransactions;
 	private int _currentTransactionId;
+	private int _logSequenceNumber;
 
 	
 	private PersistanceManager() {
 		_buffer = new HashMap<Integer, Object[]>();
-		_log = new LogFile("fortress.log");
-		_disk = new Storage("fortress.db");
 		_currentTransactionId = 0;
-		_committedTransactions = new Stack<Integer>();
-		
+		_logSequenceNumber = 0;
+		_committedTransactions = new HashMap<Integer, Object[]>();
 	}
 	
-	public int beginTransaction() {
+	public synchronized int beginTransaction() {
 		_currentTransactionId++;
 		return _currentTransactionId;
 	}
 	
 	public void commit(int transactionId) {
-		// list.add(tid)
-		_committedTransactions.push(transactionId);
+
+		for(Entry<Integer, Object[]> entry: _buffer.entrySet()) {
+			
+			Object[] tuple = entry.getValue();
+			if ((int)tuple[0] == transactionId) {
+				
+				int logSequenceNumber = log(entry.getKey(), (int)tuple[0], (String)tuple[1]);
+				
+				tuple[2] = logSequenceNumber;
+				_committedTransactions.put(entry.getKey(), tuple);
+			}
+		}
+		for (Integer key: _committedTransactions.keySet()) {
+			_buffer.remove(key);
+		}
 	}
 	
 	public void write(int transactionId, int pageId, String data) {
 		
-		_buffer.put(pageId, new Object[]{ transactionId, data });
-		if (_buffer.size() > MAX_BUFFER_SIZE) {
+		_buffer.put(pageId, new Object[]{ transactionId, data,});
+		if (_buffer.size()+_committedTransactions.size() > MAX_BUFFER_SIZE) {
 			persistTransactions();
 		}
 	}
 	
+	private int log(int pageId, int transactionId, String data) {
+		int logSequenceNumber = getLogSequenceNumber();
+		String filename = DB_FOLDER + String.format("lsn-%03d.log", logSequenceNumber);
+		String filecontent = String.format("%d,%d,%d,%s", logSequenceNumber, transactionId, pageId, data);
+		FileWriter file;
+		try {
+			file = new FileWriter(filename);
+			file.write(filecontent);
+			file.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return logSequenceNumber;
+	}
+
+	private synchronized int getLogSequenceNumber() {
+		_logSequenceNumber++;
+		return _logSequenceNumber;
+	}
+
 	private void persistTransactions() {
-		// get all (pageId, data) for transactionID
-		while (!_committedTransactions.isEmpty()) {
-			int tid = _committedTransactions.pop();
-//			_buffer.
+		for(Entry<Integer, Object[]> entry: _committedTransactions.entrySet()) {
+			// write entry
+			Object[] tuple = entry.getValue();
+			int pageId = entry.getKey();
+			String filename = DB_FOLDER + String.format("page-%03d.page", pageId);
+			String filecontent = String.format("%03d,%03d,%s", pageId, tuple[2], tuple[1]);
+			FileWriter file;
+			try {
+				file = new FileWriter(filename);
+				file.write(filecontent);
+				file.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 		
-//		new list
-//		for(Object[] tuple: _buffer.values()) {
-//			int tid = (Integer) tuple[0];
-//			if(_committedTransactions.contains(tid)) (
-//				list.add()	)
-//		}
-		
-		// write all tuples to disk
-		// remove tuples from buffer
+		_committedTransactions.clear();
+
 	}
 	
 	public static PersistanceManager getPersistanceManager() {
