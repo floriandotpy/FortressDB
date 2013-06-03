@@ -14,22 +14,28 @@ public class PersistanceManager {
 	
 	private static PersistanceManager _pmngr;
 	private Map<Integer, Object[]> _buffer; // pageId -> (transactionId, data)
-
 	private Map<Integer, Object[]> _committedTransactions;
-	private int _currentTransactionId;
-	private int _logSequenceNumber;
-
+	private File _currentTransaction;
+	private File _currentLogSequenceNumber;
 	
 	private PersistanceManager() {
 		_buffer = new HashMap<Integer, Object[]>();
-		_currentTransactionId = 0;
-		_logSequenceNumber = 0;
 		_committedTransactions = new HashMap<Integer, Object[]>();
+		_currentTransaction = new File(DB_FOLDER + "transaction.current");
+		_currentLogSequenceNumber = new File(DB_FOLDER + "lsn.current");
 	}
 	
 	public synchronized int beginTransaction() {
-		_currentTransactionId++;
-		return _currentTransactionId;
+		int currentTransactionId;
+		String saved = Recovery.readFile(_currentTransaction)[0];
+		if(saved != "") {
+			currentTransactionId = Integer.valueOf(saved);
+		} else {
+			currentTransactionId = 0;
+		}
+		currentTransactionId++;
+		writeFile(_currentTransaction, "" + currentTransactionId);
+		return currentTransactionId;
 	}
 	
 	public void commit(int transactionId) {
@@ -73,8 +79,16 @@ public class PersistanceManager {
 	}
 
 	private synchronized int getLogSequenceNumber() {
-		_logSequenceNumber++;
-		return _logSequenceNumber;
+		int currentLogSequenceNumber; 
+		String saved = Recovery.readFile(_currentLogSequenceNumber)[0];
+		if (saved != "") {
+			currentLogSequenceNumber = Integer.valueOf(saved);
+		} else {
+			currentLogSequenceNumber = 0;
+		}
+		currentLogSequenceNumber++;
+		writeFile(_currentLogSequenceNumber, "" + currentLogSequenceNumber);
+		return currentLogSequenceNumber;
 	}
 
 	private void persistTransactions() {
@@ -94,6 +108,10 @@ public class PersistanceManager {
 	
 	private void writeFile(String filename, String filecontent) {
 		File file = new File(filename);
+		writeFile(file, filecontent);
+	}
+	
+	private void writeFile(File file, String filecontent) {
 		try {
 			if (!file.exists()) {
 				file.getParentFile().mkdirs();
@@ -104,7 +122,7 @@ public class PersistanceManager {
 			writer.close();
 		} catch (IOException e) {
 			e.printStackTrace();
-		}
+		}		
 	}
 	
 	public static PersistanceManager getPersistanceManager() {

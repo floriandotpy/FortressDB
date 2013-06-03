@@ -92,12 +92,14 @@ public class Recovery {
 		}
 	}
 	
-	private String[] readFile(File file) {
+	public static String[] readFile(File file) {
 		String line = "";
 		try {
-			BufferedReader reader = new BufferedReader(new FileReader(file));
-			line = reader.readLine();
-			reader.close();
+			if (file.exists()) {
+				BufferedReader reader = new BufferedReader(new FileReader(file));
+				line = reader.readLine();
+				reader.close();
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
