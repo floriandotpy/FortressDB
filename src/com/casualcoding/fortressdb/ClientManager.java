@@ -19,10 +19,10 @@ public class ClientManager {
 		second.write(21, "second client - second transaction");
 		second.commit();
 		
-		Client third = new Client();
-		third.beginTransaction();
-		third.write(30, "third client - first transaction");
-		third.write(31, "third client - second transaction");
+//		Client third = new Client();
+//		third.beginTransaction();
+//		third.write(30, "third client - first transaction");
+//		third.write(31, "third client - second transaction");
 		
 	}
 }

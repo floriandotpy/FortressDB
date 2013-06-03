@@ -8,8 +8,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 public class PersistanceManager {
+	public static final String DB_FOLDER = "db/";
+
 	private static final int MAX_BUFFER_SIZE = 5;
-	private static final String DB_FOLDER = "db/";
 	
 	private static PersistanceManager _pmngr;
 	private Map<Integer, Object[]> _buffer; // pageId -> (transactionId, data)
@@ -32,7 +33,7 @@ public class PersistanceManager {
 	}
 	
 	public void commit(int transactionId) {
-
+		System.out.println(String.format("commit transaction %03d.\n", transactionId));
 		for(Entry<Integer, Object[]> entry: _buffer.entrySet()) {
 			
 			Object[] tuple = entry.getValue();
@@ -54,7 +55,7 @@ public class PersistanceManager {
 		System.out.println(String.format("Write to buffer: pageId -> %03d, transactionId -> %03d, data -> %s", pageId, transactionId, data));
 		_buffer.put(pageId, new Object[]{ transactionId, data});
 		
-		System.out.println(String.format("Buffer size: %d", _buffer.size() + _committedTransactions.size()));
+		System.out.println(String.format("Buffer size: %d\n", _buffer.size() + _committedTransactions.size()));
 		if (_buffer.size()+_committedTransactions.size() > MAX_BUFFER_SIZE) {
 			
 			persistTransactions();
@@ -77,6 +78,7 @@ public class PersistanceManager {
 	}
 
 	private void persistTransactions() {
+		System.out.println("Write commited transactions to persistent storage.\n");
 		for(Entry<Integer, Object[]> entry: _committedTransactions.entrySet()) {
 			// write entry
 			Object[] tuple = entry.getValue();
