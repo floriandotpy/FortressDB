@@ -1,11 +1,11 @@
 package com.casualcoding.fortressdb;
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Stack;
 
 public class PersistanceManager {
 	private static final int MAX_BUFFER_SIZE = 5;
@@ -36,11 +36,11 @@ public class PersistanceManager {
 		for(Entry<Integer, Object[]> entry: _buffer.entrySet()) {
 			
 			Object[] tuple = entry.getValue();
-			if ((int)tuple[0] == transactionId) {
+			if ((Integer) tuple[0] == transactionId) {
 				
-				int logSequenceNumber = log(entry.getKey(), (int)tuple[0], (String)tuple[1]);
+				int logSequenceNumber = log(entry.getKey(), (Integer) tuple[0], (String)tuple[1]);
 				
-				tuple[2] = logSequenceNumber;
+				tuple = new Object[] {tuple[0], tuple[1], logSequenceNumber};
 				_committedTransactions.put(entry.getKey(), tuple);
 			}
 		}
@@ -51,9 +51,14 @@ public class PersistanceManager {
 	
 	public void write(int transactionId, int pageId, String data) {
 		
-		_buffer.put(pageId, new Object[]{ transactionId, data,});
+		System.out.println(String.format("Write to buffer: pageId -> %03d, transactionId -> %03d, data -> %s", pageId, transactionId, data));
+		_buffer.put(pageId, new Object[]{ transactionId, data});
+		
+		System.out.println(String.format("Buffer size: %d", _buffer.size() + _committedTransactions.size()));
 		if (_buffer.size()+_committedTransactions.size() > MAX_BUFFER_SIZE) {
+			
 			persistTransactions();
+		} else {
 		}
 	}
 	
@@ -61,14 +66,8 @@ public class PersistanceManager {
 		int logSequenceNumber = getLogSequenceNumber();
 		String filename = DB_FOLDER + String.format("lsn-%03d.log", logSequenceNumber);
 		String filecontent = String.format("%d,%d,%d,%s", logSequenceNumber, transactionId, pageId, data);
-		FileWriter file;
-		try {
-			file = new FileWriter(filename);
-			file.write(filecontent);
-			file.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		writeFile(filename, filecontent);
+		
 		return logSequenceNumber;
 	}
 
@@ -83,19 +82,27 @@ public class PersistanceManager {
 			Object[] tuple = entry.getValue();
 			int pageId = entry.getKey();
 			String filename = DB_FOLDER + String.format("page-%03d.page", pageId);
-			String filecontent = String.format("%03d,%03d,%s", pageId, tuple[2], tuple[1]);
-			FileWriter file;
-			try {
-				file = new FileWriter(filename);
-				file.write(filecontent);
-				file.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			String filecontent = String.format("%d,%d,%s", pageId, tuple[2], tuple[1]);
+			writeFile(filename, filecontent);
 		}
 		
 		_committedTransactions.clear();
 
+	}
+	
+	private void writeFile(String filename, String filecontent) {
+		File file = new File(filename);
+		try {
+			if (!file.exists()) {
+				file.getParentFile().mkdirs();
+				file.createNewFile();
+			}
+			FileWriter writer = new FileWriter(file.getAbsoluteFile());
+			writer.write(filecontent);
+			writer.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	public static PersistanceManager getPersistanceManager() {
@@ -103,10 +110,6 @@ public class PersistanceManager {
 			_pmngr = new PersistanceManager();
 		}
 		return _pmngr;
-	}
-	
+	}	
 
-	
-	
-	
 }
