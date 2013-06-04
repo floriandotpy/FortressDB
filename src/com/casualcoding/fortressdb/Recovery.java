@@ -1,9 +1,6 @@
 package com.casualcoding.fortressdb;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -12,7 +9,10 @@ import java.util.Map.Entry;
 
 public class Recovery {
 	
+	// transactionId -> list(tuples(lsn, pageId, data))
 	private	Map<Integer, List<Object[]>> _log;
+	
+	// pageId -> lsn
 	private Map<Integer, Integer> _pages;
 	
 	public Recovery() {
@@ -30,24 +30,45 @@ public class Recovery {
 				int logSequenceNumber = (Integer) log[0];
 				int pageId = (Integer) log[1];
 				Integer pageLogSequenceNumber = _pages.get(pageId);
+				
+				// check if data has never been persisted OR data is missing a write
 				if(pageLogSequenceNumber == null || pageLogSequenceNumber < logSequenceNumber) {
 					winnerTransactions.add(entry.getKey());
 					System.out.println(String.format("Not persisted winner transaction: %03d", entry.getKey()));
-					break;
+					break; // no need to check further, we'll have to write the whole transaction anyway
 				}
 			}
 		}
 		
+		
 		if(winnerTransactions.size() > 0) {
-			PersistanceManager manager = PersistanceManager.getPersistanceManager();
-			int tid = manager.beginTransaction();
 			for(Integer transactionId: winnerTransactions) {
 				System.out.println(String.format("Redo transaction: %03d", transactionId));
 				for(Object[] log: _log.get(transactionId)) {
-					manager.write(tid, (Integer) log[1], (String) log[2]); 
+					
+					int lsn = (int) log[0];
+					int pageId = (int) log[1];
+					String data = (String) log[2];
+					String filename = path + String.format("page-%03d.page", pageId);
+					String filecontent = String.format("%d,%d,%s", pageId, lsn, data);
+					Tools.writeFile(filename, filecontent);
+					
 				}
 			}
-			manager.commit(tid);
+
+			removeLogFiles(path);			
+		}
+	}
+
+	private void removeLogFiles(String path) {
+		File folder = new File(path);
+		for (File file : folder.listFiles()) {
+			if (file.isFile()) {
+				String filename = file.getName();
+				if (filename.endsWith(".log")) {
+					file.delete();
+				} 
+			}
 		}
 	}
 	
@@ -66,7 +87,7 @@ public class Recovery {
 	}
 	
 	private void addLog(File file) {
-		String[] filecontent = readFile(file);
+		String[] filecontent = Tools.readFile(file);
 		if (filecontent.length >= 4) {
 			int logSequenceNumber = Integer.valueOf(filecontent[0]);
 			int transactionId = Integer.valueOf(filecontent[1]);
@@ -83,7 +104,7 @@ public class Recovery {
 	}
 	
 	private void addPage(File file) {
-		String[] filecontent = readFile(file);
+		String[] filecontent = Tools.readFile(file);
 		if (filecontent.length >= 2) {
 			int pageId = Integer.valueOf(filecontent[0]);
 			int logSequenceNumber = Integer.valueOf(filecontent[1]);
@@ -91,20 +112,7 @@ public class Recovery {
 			System.out.println(String.format("Page: id -> %03d, lsn -> %03d", pageId, logSequenceNumber));
 		}
 	}
-	
-	public static String[] readFile(File file) {
-		String line = "";
-		try {
-			if (file.exists()) {
-				BufferedReader reader = new BufferedReader(new FileReader(file));
-				line = reader.readLine();
-				reader.close();
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return line.split(",");
-	}
+
 
 	public static void main(String[] args) {
 		Recovery recovery = new Recovery();
